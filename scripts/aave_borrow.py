@@ -12,8 +12,8 @@ def main():
     account = get_account()
     erc20_address = config["networks"][network.show_active()]["weth_token"]
     if network.show_active() in ["mainnet-fork"]:
-        get_weth() #this function mints 0.1weth with eth
-    lending_pool = get_lending_pool() #get lending pool address
+        get_weth()  # this function mints 0.1weth with eth
+    lending_pool = get_lending_pool()  # get lending pool address
     approve_tx = approve_erc20(AMOUNT, lending_pool.address, erc20_address, account)
     print("Depositing...")
     tx = lending_pool.deposit(
@@ -24,16 +24,31 @@ def main():
     borrowable_eth, total_debt = get_borrowable_data(lending_pool, account)
     print("Lets Borrow")
     # DAI in terms of ETH
-    dai_eth_price = get_asset_price(config["networks"][network.show_active()]["dai_to_eth_price_feed"])
+    dai_eth_price = get_asset_price(
+        config["networks"][network.show_active()]["dai_to_eth_price_feed"]
+    )
+    amount_dai_to_borrow = (borrowable_eth * 0.95) / dai_eth_price
+    dai_address = config["networks"][network.show_active()]["dai_token"]
+    borrow_tx = lending_pool.borrow(
+        dai_address,
+        Web3.toWei(amount_dai_to_borrow, "ether"),
+        1,
+        0,
+        account.address,
+        {"from": account},
+    )
+    borrow_tx.wait(1)
+    print(" We succesfully borrow some DAI")
+    # borrowable -> borrowable DAI * 0.95 (avoid being liquidated)
+    print(f"We are going to borrow {amount_dai_to_borrow}")
+
 
 def get_asset_price(price_feed_address):
-    #ABI
     dai_eth_price_feed = interface.AggregatorV3Interface(price_feed_address)
-    latest_price = dai_eth_price_feed.latestRoundData()[1] #1st index stands for the second result.
-    print(f"Dai/Eth price is {latest_price}")
-    return float(latest_price)
-    #ADDRESS
-
+    latest_price = dai_eth_price_feed.latestRoundData()[1]
+    converted_latest_price = Web3.fromWei(latest_price, "ether")
+    print(f"The DAI/ETH price is {converted_latest_price}")
+    return float(converted_latest_price)
 
 
 def get_lending_pool():
@@ -45,15 +60,19 @@ def get_lending_pool():
     # this is the function to store the address
     # function getLendingPool() external view returns (address);
 
-    lending_pool_address = lending_pool_addresses_provider.getLendingPool() #get lending pool is the "method" inside the provider
-    lending_pool = interface.ILendingPool(lending_pool_address) #ILendingpool returns the addres of the lending pool
+    lending_pool_address = (
+        lending_pool_addresses_provider.getLendingPool()
+    )  # get lending pool is the "method" inside the provider
+    lending_pool = interface.ILendingPool(
+        lending_pool_address
+    )  # ILendingpool returns the addres of the lending pool
     return lending_pool
 
 
 def approve_erc20(amount, spender, erc20_address, account):
     print("Approving ERC20 Token")
     erc20 = interface.IERC20(erc20_address)
-    tx = erc20.approve(spender, amount, {"from": account}) #aprove a transaction 
+    tx = erc20.approve(spender, amount, {"from": account})  # aprove a transaction
     tx.wait(1)
     print("Approved")
     return tx
