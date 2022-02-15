@@ -28,6 +28,9 @@ def main():
         config["networks"][network.show_active()]["dai_to_eth_price_feed"]
     )
     amount_dai_to_borrow = (borrowable_eth * 0.95) / dai_eth_price
+    # borrowable -> borrowable DAI * 0.95 (avoid being liquidated)
+    print(f"We are going to borrow {amount_dai_to_borrow}")
+
     dai_address = config["networks"][network.show_active()]["dai_token"]
     borrow_tx = lending_pool.borrow(
         dai_address,
@@ -39,8 +42,25 @@ def main():
     )
     borrow_tx.wait(1)
     print(" We succesfully borrow some DAI")
-    # borrowable -> borrowable DAI * 0.95 (avoid being liquidated)
-    print(f"We are going to borrow {amount_dai_to_borrow}")
+    # repay_all(AMOUNT, lending_pool, account)
+
+
+def repay_all(amount, lending_pool, account):
+    approve_erc20(
+        Web3.toWei(amount, "ether"),
+        lending_pool,
+        config["networks"][network.show_active()]["dai_token"],
+        account,
+    )
+    repay_tx = lending_pool.repay(
+        config["networks"][network.show_active()]["dai_token"],
+        amount,
+        1,
+        account.address,
+        {"from": account},
+    )
+    repay_tx.wait(1)
+    print("Deposited, Borrowed, and repayed with Aave, Brownie and Chainlink")
 
 
 def get_asset_price(price_feed_address):
