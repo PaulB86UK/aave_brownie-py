@@ -1,3 +1,4 @@
+from click import FloatRange
 from scripts.pp_functions import get_account
 from brownie import network, config, interface
 from scripts.get_weth import get_weth
@@ -11,8 +12,8 @@ def main():
     account = get_account()
     erc20_address = config["networks"][network.show_active()]["weth_token"]
     if network.show_active() in ["mainnet-fork"]:
-        get_weth()
-    lending_pool = get_lending_pool()
+        get_weth() #this function mints 0.1weth with eth
+    lending_pool = get_lending_pool() #get lending pool address
     approve_tx = approve_erc20(AMOUNT, lending_pool.address, erc20_address, account)
     print("Depositing...")
     tx = lending_pool.deposit(
@@ -21,10 +22,22 @@ def main():
     tx.wait(1)
     print("Deposited!")
     borrowable_eth, total_debt = get_borrowable_data(lending_pool, account)
+    print("Lets Borrow")
+    # DAI in terms of ETH
+    dai_eth_price = get_asset_price(config["networks"][network.show_active()]["dai_to_eth_price_feed"])
+
+def get_asset_price(price_feed_address):
+    #ABI
+    dai_eth_price_feed = interface.AggregatorV3Interface(price_feed_address)
+    latest_price = dai_eth_price_feed.latestRoundData()[1] #1st index stands for the second result.
+    print(f"Dai/Eth price is {latest_price}")
+    return float(latest_price)
+    #ADDRESS
+
 
 
 def get_lending_pool():
-    # This part is to get the address of the lending Pool
+    # This part is to get the address of the lending Pool using the contract address of the provider contract
     # lending_pool_addresses_provider is the contract that returns the address
     lending_pool_addresses_provider = interface.ILendingPoolAddressesProvider(
         config["networks"][network.show_active()]["lending_pool_addresses_provider"]
@@ -32,15 +45,15 @@ def get_lending_pool():
     # this is the function to store the address
     # function getLendingPool() external view returns (address);
 
-    lending_pool_address = lending_pool_addresses_provider.getLendingPool()
-    lending_pool = interface.ILendingPool(lending_pool_address)
+    lending_pool_address = lending_pool_addresses_provider.getLendingPool() #get lending pool is the "method" inside the provider
+    lending_pool = interface.ILendingPool(lending_pool_address) #ILendingpool returns the addres of the lending pool
     return lending_pool
 
 
 def approve_erc20(amount, spender, erc20_address, account):
     print("Approving ERC20 Token")
     erc20 = interface.IERC20(erc20_address)
-    tx = erc20.approve(spender, amount, {"from": account})
+    tx = erc20.approve(spender, amount, {"from": account}) #aprove a transaction 
     tx.wait(1)
     print("Approved")
     return tx
